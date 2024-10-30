@@ -4,15 +4,14 @@ import split_pdf
 import shutil
 import os
 import pdf_to_b64
-from klassen import Ankreuzfeld, Textfled
+from klassen import Ankreuzfeld, Textfled, Feld
 
 global_counter = 0
-
 
 def generate_18_digit_uuid():
     return str(random.randint(10**17, 10**18 - 1))
 
-def delete_folder(folder_name):
+def delete_folder(folder_name: str):
     # Überprüfen, ob der Ordner existiert
     if os.path.exists(folder_name) and os.path.isdir(folder_name):
         try:
@@ -23,7 +22,7 @@ def delete_folder(folder_name):
     else:
         print(f"Ordner '{folder_name}' existiert nicht.")
 
-def ankreuzfeld_to_xml(el, n):
+def ankreuzfeld_to_xml(el: Feld, n: int) -> str:
     global global_counter
     global_counter += 1
 
@@ -59,7 +58,7 @@ def ankreuzfeld_to_xml(el, n):
        	<real>{el.y_in_mm - height / 2}</real>
     </dict>"""
 
-def textfeld_to_xml(el, n):
+def textfeld_to_xml(el: Feld, n: int) -> str:
     global global_counter
     global_counter += 1
 
@@ -99,16 +98,15 @@ def textfeld_to_xml(el, n):
        	<real>{y}</real>
     </dict>"""
 
-def convert(pdf_file_path):
-    # pdf_file_path = 'Beispiel.pdf'
+def convert(pdf_file_path: str):
+    global global_counter
+    global_counter = 0
 
     pages = split_pdf.pdf_to_png(pdf_file_path)
-    # pages = ['image1.jpeg', 'image2.jpeg']
 
     pages_b64 = pdf_to_b64.pdf_to_base64_pages(pdf_file_path)
 
     seite_liste: list = []
-
 
     for m, page in enumerate(pages):
 
