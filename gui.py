@@ -10,7 +10,7 @@ import trace
 class PDFDCTApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("PDFs zu Formular Konverter")
+        self.root.title("PDF to Formular Konverter (Werner)")
         self.root.geometry("400x150")
 
         # Desktop-Pfad für die Plattform ermitteln

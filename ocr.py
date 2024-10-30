@@ -3,11 +3,14 @@ import numpy as np
 # import matplotlib.pyplot as plt
 from klassen import Ankreuzfeld, Textfled
 
-def quadratische_ankreuzfelder(image_path: str) -> list:
+def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     res = []
     detected_centers = []  # Liste zum Speichern der Mittelpunkte bereits erkannter Quadrate
+
     # Bild laden
     image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError("Bild konnte nicht geladen werden. Überprüfen Sie den Pfad.")
 
     # Bild in Graustufen umwandeln
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -27,9 +30,12 @@ def quadratische_ankreuzfelder(image_path: str) -> list:
     min_size = 20
     max_size = 100
 
-    # Setze die DPI des Bildes (hier als Beispiel 300 DPI)
-    dpi = 300
-    mm_per_pixel = 25.4 / dpi
+    # Bildabmessungen in Pixel
+    image_height_px, image_width_px = gray.shape
+
+    # Berechnung der mm pro Pixel
+    mm_per_pixel_x = bildbreite_mm / image_width_px
+    mm_per_pixel_y = bildhoehe_mm / image_height_px
 
     # Schleife über die gefundenen Konturen
     for i, contour in enumerate(contours):
@@ -41,7 +47,7 @@ def quadratische_ankreuzfelder(image_path: str) -> list:
 
             # Wenn die approximierte Kontur 4 Ecken hat, handelt es sich um ein Rechteck oder Quadrat
             if len(approx) == 4:
-                # Kontrollieren, ob es ein Rechteck oder Quadrat ist (Seitenlängen prüfen)
+                # Kontrollieren, ob es ein Rechteck oder Quadrat ist (Seitenverhältnis prüfen)
                 (x, y, w, h) = cv2.boundingRect(approx)
                 aspect_ratio = w / float(h)
 
@@ -61,21 +67,16 @@ def quadratische_ankreuzfelder(image_path: str) -> list:
                     # Wenn kein Duplikat gefunden wurde, Quadrat speichern und markieren
                     if not duplicate:
                         detected_centers.append((center_x, center_y))  # Hinzufügen des neuen Mittelpunkts
-                        center_x_mm = center_x * mm_per_pixel
-                        center_y_mm = center_y * mm_per_pixel
+                        center_x_mm = center_x * mm_per_pixel_x
+                        center_y_mm = center_y * mm_per_pixel_y
                         res.append(Ankreuzfeld(center_x_mm, center_y_mm))
 
-                        # Quadrat oder Rechteck zeichnen und Mittelpunkt markieren
-                        cv2.drawContours(image, [approx], -1, (0, 255, 0), 3)
-                        cv2.circle(image, (center_x, center_y), 5, (0, 0, 255), -1)
+                        # Quadrat oder Rechteck zeichnen und Mittelpunkt markieren (optional)
+                        # cv2.drawContours(image, [approx], -1, (0, 255, 0), 3)
+                        # cv2.circle(image, (center_x, center_y), 5, (0, 0, 255), -1)
 
     # Sortieren der Quadrate: zuerst nach y, dann nach x
-    # res.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
-
-    # Ergebnis anzeigen (optional)
-    # cv2.imshow("Quadrate", image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    res.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))
 
     return res
 
@@ -156,7 +157,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
 
     return perfekte_kreise_mm
 
-def textfelder(image_path: str) -> list:
+def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
@@ -179,9 +180,12 @@ def textfelder(image_path: str) -> list:
     # Konturen der isolierten horizontalen Linien finden
     contours, _ = cv2.findContours(isolated_horizontal_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Umrechnungsfaktor von Pixel zu mm (DIN A4 300 DPI = 2480 x 3508 Pixel)
-    pixel_to_mm_x = 210 / 2480
-    pixel_to_mm_y = 297 / 3508
+    # Bildabmessungen in Pixel
+    image_height_px, image_width_px = image.shape
+
+    # Berechnung der mm pro Pixel
+    pixel_to_mm_x = bildbreite_mm / image_width_px
+    pixel_to_mm_y = bildhoehe_mm / image_height_px
 
     # Filter für isolierte Linien: Breite, Höhe und Isolation prüfen
     lines_positions_mm = []
@@ -203,10 +207,9 @@ def textfelder(image_path: str) -> list:
                 x_mm = x * pixel_to_mm_x
                 y_mm = y * pixel_to_mm_y
                 w_mm = w * pixel_to_mm_x
-                # h_mm = h * pixel_to_mm_y
                 lines_positions_mm.append(Textfled(x_mm, y_mm, w_mm))
 
     # Sortieren der Linien: zuerst nach y, dann nach x
-    # lines_positions_mm.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
+    lines_positions_mm.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))
 
     return lines_positions_mm

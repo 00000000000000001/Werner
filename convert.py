@@ -4,6 +4,7 @@ import split_pdf
 import shutil
 import os
 import pdf_to_b64
+from PIL import Image
 from klassen import Ankreuzfeld, Textfled, Feld
 
 global_counter = 0
@@ -98,9 +99,57 @@ def textfeld_to_xml(el: Feld, n: int) -> str:
        	<real>{y}</real>
     </dict>"""
 
+def berechne_bildmasse_in_mm(png_datei_pfad: str, standard_dpi: int = 300) -> tuple:
+    """
+    Berechnet die physischen Abmessungen eines PNG-Bildes in Millimetern.
+
+    :param png_datei_pfad: Pfad zur PNG-Datei.
+    :param standard_dpi: Standard-DPI-Wert, falls die Datei keine DPI-Informationen enthält.
+    :return: Ein Tuple (breite_mm, höhe_mm).
+    :raises: FileNotFoundError, ValueError
+    """
+    if not os.path.exists(png_datei_pfad):
+        raise FileNotFoundError(f"Die Datei '{png_datei_pfad}' wurde nicht gefunden.")
+
+    try:
+        with Image.open(png_datei_pfad) as img:
+            # Versuche, die DPI-Informationen aus den Metadaten zu extrahieren
+            info = img.info
+            dpi = None
+
+            if 'dpi' in info:
+                dpi = info['dpi']
+                if isinstance(dpi, tuple):
+                    # Durchschnittliche DPI berechnen, falls unterschiedliche Werte für x und y
+                    dpi_x, dpi_y = dpi
+                else:
+                    dpi_x = dpi_y = dpi
+            else:
+                # DPI-Informationen nicht gefunden, Standardwert verwenden
+                dpi_x = dpi_y = standard_dpi
+                print(f"DPI-Informationen nicht gefunden. Verwende Standard-DPI: {standard_dpi}")
+
+            # Berechnung der mm pro Pixel
+            mm_pro_pixel_x = 25.4 / dpi_x
+            mm_pro_pixel_y = 25.4 / dpi_y
+
+            # Bildabmessungen in Pixel
+            breite_px, höhe_px = img.size
+
+            # Berechnung der physischen Abmessungen in mm
+            breite_mm = breite_px * mm_pro_pixel_x
+            hoehe_mm = höhe_px * mm_pro_pixel_y
+
+            return (breite_mm, hoehe_mm)
+
+    except Exception as e:
+        raise ValueError(f"Fehler beim Verarbeiten der Datei '{png_datei_pfad}': {e}")
+
 def convert(pdf_file_path: str):
     global global_counter
     global_counter = 0
+
+    name = "Werner"
 
     pages = split_pdf.pdf_to_png(pdf_file_path)
 
@@ -110,9 +159,11 @@ def convert(pdf_file_path: str):
 
     for m, page in enumerate(pages):
 
-        arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(page)
-        arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(page)
-        arr_textfelder_koord = ocr.textfelder(page)
+        bildmasse_in_mm = berechne_bildmasse_in_mm(page)
+
+        arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_textfelder_koord = ocr.textfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
 
         arr_felder = []
         arr_felder.extend(arr_ankreuzfelder_rund_koord)
@@ -204,7 +255,7 @@ def convert(pdf_file_path: str):
 	<key>kategorie</key>
 	<string>Custom-Formulare</string>
 	<key>kuerzel</key>
-	<string>OCR</string>
+	<string>{name}</string>
 	<key>listenposition</key>
 	<integer>2</integer>
 	<key>name</key>
@@ -216,7 +267,7 @@ def convert(pdf_file_path: str):
 	<key>papersize_width</key>
 	<real>595</real>
 	<key>tooltip</key>
-	<string>OCR</string>
+	<string>{name}</string>
 	<key>version</key>
 	<string>v1.64</string>
 	<key>visible</key>
