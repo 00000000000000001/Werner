@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 # import matplotlib.pyplot as plt
-
+from klassen import Ankreuzfeld, Textfled
 
 def quadratische_ankreuzfelder(image_path: str) -> list:
     res = []
@@ -63,20 +63,21 @@ def quadratische_ankreuzfelder(image_path: str) -> list:
                         detected_centers.append((center_x, center_y))  # Hinzufügen des neuen Mittelpunkts
                         center_x_mm = center_x * mm_per_pixel
                         center_y_mm = center_y * mm_per_pixel
-                        res.append((center_x_mm, center_y_mm))
+                        res.append(Ankreuzfeld(center_x_mm, center_y_mm))
 
                         # Quadrat oder Rechteck zeichnen und Mittelpunkt markieren
                         cv2.drawContours(image, [approx], -1, (0, 255, 0), 3)
                         cv2.circle(image, (center_x, center_y), 5, (0, 0, 255), -1)
 
-    # Ergebnis anzeigen
-    # cv2.imshow("Optimierte Quadrate und Rechtecke erkennen", image)
+    # Sortieren der Quadrate: zuerst nach y, dann nach x
+    # res.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
+
+    # Ergebnis anzeigen (optional)
+    # cv2.imshow("Quadrate", image)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
 
     return res
-
-
 
 def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=15, max_radius_px=25, umgebung_puffer_px=10):
     # Bild in Graustufen laden und Kanten hervorheben
@@ -148,14 +149,14 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
         # Umrechnung der Pixel-Koordinaten in mm
         cx_mm = cx_pixel * mm_pro_pixel_breite
         cy_mm = cy_pixel * mm_pro_pixel_hoehe
-        perfekte_kreise_mm.append((cx_mm, cy_mm))
+        perfekte_kreise_mm.append(Ankreuzfeld(cx_mm, cy_mm))
+
+    # Sortieren der Kreise: zuerst nach y, dann nach x
+    # perfekte_kreise_mm.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
 
     return perfekte_kreise_mm
 
-
-
-
-def horizontale_linien(image_path: str) -> list:
+def textfelder(image_path: str) -> list:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
@@ -202,10 +203,10 @@ def horizontale_linien(image_path: str) -> list:
                 x_mm = x * pixel_to_mm_x
                 y_mm = y * pixel_to_mm_y
                 w_mm = w * pixel_to_mm_x
-                h_mm = h * pixel_to_mm_y
-                lines_positions_mm.append((x_mm, y_mm, w_mm, h_mm))
+                # h_mm = h * pixel_to_mm_y
+                lines_positions_mm.append(Textfled(x_mm, y_mm, w_mm))
 
-    # Sortieren der Linien nach ihrer y-Position für konsistente Reihenfolge
-    lines_positions_mm.sort(key=lambda pos: pos[1])
+    # Sortieren der Linien: zuerst nach y, dann nach x
+    # lines_positions_mm.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
 
     return lines_positions_mm

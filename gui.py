@@ -5,6 +5,7 @@ import PyPDF2
 import convert
 import sys
 import subprocess
+import trace
 
 class PDFDCTApp:
     def __init__(self, root):
@@ -70,6 +71,8 @@ class PDFDCTApp:
         except Exception as e:
             print(f"Fehler beim Verarbeiten der PDF-Dateien: {e}")
             self.result_label.config(text=f"Fehler: {e}", fg="red")
+            import traceback
+            traceback.print_exc()
 
     def open_folder(self, path):
         """Öffnet den Ordner im System-Dateiexplorer"""
