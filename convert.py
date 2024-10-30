@@ -9,7 +9,7 @@ from klassen import Ankreuzfeld, Textfled, Feld
 
 global_counter = 0
 
-def generate_18_digit_uuid():
+def generate_ident():
     return str(random.randint(10**17, 10**18 - 1))
 
 def delete_folder(folder_name: str):
@@ -42,7 +42,7 @@ def ankreuzfeld_to_xml(el: Feld, n: int) -> str:
        	<key>height</key>
        	<real>{height}</real>
        	<key>ident</key>
-       	<integer>{generate_18_digit_uuid()}</integer>
+       	<integer>{generate_ident()}</integer>
        	<key>listenpos</key>
        	<integer>{n + 1}</integer>
        	<key>modus</key>
@@ -78,7 +78,7 @@ def textfeld_to_xml(el: Feld, n: int) -> str:
        	<key>height</key>
        	<real>6</real>
        	<key>ident</key>
-       	<integer>{generate_18_digit_uuid()}</integer>
+       	<integer>{generate_ident()}</integer>
        	<key>isMandatory</key>
        	<integer>0</integer>
        	<key>listenpos</key>
@@ -145,11 +145,28 @@ def berechne_bildmasse_in_mm(png_datei_pfad: str, standard_dpi: int = 300) -> tu
     except Exception as e:
         raise ValueError(f"Fehler beim Verarbeiten der Datei '{png_datei_pfad}': {e}")
 
+def mm_in_punkte(breite_mm: int, hoehe_mm: int) -> tuple:
+    """
+    Konvertiert Breite und Höhe von Millimetern in ganze Punkte.
+
+    :param breite_mm: Breite in Millimetern.
+    :param hoehe_mm: Höhe in Millimetern.
+    :return: Tuple mit Breite und Höhe in Punkten (breite_pt, hoehe_pt), gerundet auf ganze Zahlen.
+    """
+    # Umrechnungsfaktor von mm zu Punkten
+    mm_zu_punkt = 72 / 25.4  # ≈ 2.83465
+
+    # Umrechnung und Rundung auf ganze Zahlen
+    breite_pt = int(breite_mm * mm_zu_punkt)
+    hoehe_pt = int(hoehe_mm * mm_zu_punkt)
+
+    return (breite_pt, hoehe_pt)
+
 def convert(pdf_file_path: str):
     global global_counter
     global_counter = 0
 
-    name = "Werner"
+    name = "OCR"
 
     pages = split_pdf.pdf_to_png(pdf_file_path)
 
@@ -157,9 +174,12 @@ def convert(pdf_file_path: str):
 
     seite_liste: list = []
 
+    bildmasse_in_punkte: tuple = (595, 840)
+
     for m, page in enumerate(pages):
 
         bildmasse_in_mm = berechne_bildmasse_in_mm(page)
+        bildmasse_in_punkte = mm_in_punkte(bildmasse_in_mm[0], bildmasse_in_mm[1])
 
         arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
         arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
@@ -189,7 +209,7 @@ def convert(pdf_file_path: str):
     			<key>datum</key>
     			<date>2024-10-28T14:48:37Z</date>
     			<key>ident</key>
-    			<integer>{generate_18_digit_uuid()}</integer>
+    			<integer>{generate_ident()}</integer>
     			<key>image</key>
     			<string>{b64}</string>
     			<key>md5</key>
@@ -207,7 +227,7 @@ def convert(pdf_file_path: str):
     			<true/>
     		</dict>
     		<key>ident</key>
-    		<integer>{generate_18_digit_uuid()}</integer>
+    		<integer>{generate_ident()}</integer>
     		<key>page</key>
     		<integer>{m + 1}</integer>
     	</dict>"""
@@ -251,21 +271,21 @@ def convert(pdf_file_path: str):
 		<true/>
 	</dict>
 	<key>ident</key>
-	<integer>162560870423986178</integer>
+	<integer>{generate_ident()}</integer>
 	<key>kategorie</key>
 	<string>Custom-Formulare</string>
 	<key>kuerzel</key>
 	<string>{name}</string>
 	<key>listenposition</key>
-	<integer>2</integer>
+	<integer>1</integer>
 	<key>name</key>
 	<string>CustomFormular_173892287</string>
 	<key>numberOfDirectPages</key>
 	<integer>{len(seite_liste)}</integer>
 	<key>papersize_height</key>
-	<real>840</real>
+	<real>{bildmasse_in_punkte[1]}</real>
 	<key>papersize_width</key>
-	<real>595</real>
+	<real>{bildmasse_in_punkte[0]}</real>
 	<key>tooltip</key>
 	<string>{name}</string>
 	<key>version</key>
