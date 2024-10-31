@@ -80,7 +80,7 @@ def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=
 
     return res
 
-def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=15, max_radius_px=25, umgebung_puffer_px=10):
+def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=15, max_radius_px=50, umgebung_puffer_px=10):
     # Bild in Graustufen laden und Kanten hervorheben
     bild = cv2.imread(pfad_zur_datei, cv2.IMREAD_GRAYSCALE)
     bild_hoehe, bild_breite = bild.shape[:2]
