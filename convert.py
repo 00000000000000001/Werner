@@ -189,7 +189,15 @@ def convert(pdf_file_path: str):
         arr_felder.extend(arr_ankreuzfelder_rund_koord)
         arr_felder.extend(arr_ankreuzfelder_quadratisch_koord)
         arr_felder.extend(arr_textfelder_koord)
-        arr_felder.sort(key=lambda pos: ( int(pos.y_in_mm), int(pos.x_in_mm)))
+
+        tolerance = 2  # Toleranz in mm
+        arr_felder.sort(
+            key=lambda pos: (
+                int((pos.y_in_mm + tolerance / 2) / tolerance),
+                pos.x_in_mm
+            )
+        )
+
 
         arr_felder_xml: list = []
 
