@@ -5,7 +5,9 @@ import convert
 import sys
 import subprocess
 import trace
-from split_pdf import split_pdf_into_png_files
+from pdf2image import convert_from_path
+
+from PIL import Image
 
 class PDFDCTApp:
     def __init__(self, root: tk.Tk):
@@ -14,7 +16,7 @@ class PDFDCTApp:
             pages = []
             total_pages = 0
             for file in pdf_files:
-                new_pages = split_pdf_into_png_files(file, count_offset=total_pages)
+                new_pages = self.split_pdf_into_png_files(file, count_offset=total_pages)
                 total_pages += len(new_pages)
                 pages.extend(new_pages)
 
@@ -79,6 +81,22 @@ class PDFDCTApp:
                 print("Nicht unterstütztes Betriebssystem")
         except Exception as e:
             print(f"Fehler beim Öffnen des Ordners: {e}")
+
+    def split_pdf_into_png_files(self, pdf_path, output_folder='output_images', dpi=300, count_offset=0) -> list:
+        res = []
+
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        images = convert_from_path(pdf_path, dpi=dpi)
+
+        for i, image in enumerate(images):
+            page_number = i+1+count_offset
+            image_path = os.path.join(output_folder, f"page_{page_number}.png")
+            image.save(image_path, 'PNG')
+            print(f"Seite {page_number} gespeichert als {image_path}")
+            res.append(image_path)
+        return res
 
 # Hauptfenster initialisieren
 root = tk.Tk()

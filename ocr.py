@@ -1,7 +1,6 @@
 import cv2
-import numpy as np
-# import matplotlib.pyplot as plt
-from klassen import Ankreuzfeld, Textfled
+from klassen import Ankreuzfeld, Textfeld
+import math
 
 def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     res = []
@@ -122,7 +121,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
 
         # Formfaktor überprüfen
         umfang = cv2.arcLength(kontur, True)
-        formfaktor = (umfang ** 2) / (4 * np.pi * flaeche)
+        formfaktor = (umfang ** 2) / (4 * math.pi * flaeche)
         if abs(1 - formfaktor) > epsilon_formfaktor:
             continue  # Falls kein perfekter Kreis, überspringen
 
@@ -156,6 +155,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
     # perfekte_kreise_mm.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
 
     return perfekte_kreise_mm
+
 
 def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     # Bild in Graustufen laden
@@ -202,12 +202,12 @@ def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
             right_area = vertical_lines[y:y+h, x+w:min(x+w+padding, vertical_lines.shape[1])]
 
             # Prüfen, ob keine vertikalen Linien direkt daneben vorhanden sind
-            if not (np.any(left_area) or np.any(right_area)):
+            if not (cv2.countNonZero(left_area) > 0 or cv2.countNonZero(right_area) > 0):
                 # Umrechnung der Koordinaten und Größe von Pixeln in Millimeter
                 x_mm = x * pixel_to_mm_x
                 y_mm = y * pixel_to_mm_y
                 w_mm = w * pixel_to_mm_x
-                lines_positions_mm.append(Textfled(x_mm, y_mm, w_mm))
+                lines_positions_mm.append(Textfeld(x_mm, y_mm, w_mm))
 
     # Sortieren der Linien: zuerst nach y, dann nach x
     lines_positions_mm.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))

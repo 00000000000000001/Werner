@@ -1,13 +1,23 @@
 import random
 import ocr
-import split_pdf
 import shutil
 import os
-import b64
 from PIL import Image
-from klassen import Ankreuzfeld, Textfled, Feld
+from klassen import Ankreuzfeld, Textfeld, Feld
+import base64
+from io import BytesIO
 
 global_counter = 0
+
+def png_to_base64(png_file: str) -> str:
+    print(f"Converting page {png_file} to base64.")
+
+    with Image.open(png_file) as img:
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    return img_b64
 
 def generate_ident():
     return str(random.randint(10**17, 10**18 - 1))
@@ -199,7 +209,7 @@ def convert_pngs_to_dict_string(png_files: list):
         for n, el in enumerate(arr_felder):
             if (isinstance(el, Ankreuzfeld)):
                 arr_felder_xml.append(ankreuzfeld_to_xml(el, n))
-            if (isinstance(el, Textfled)):
+            if (isinstance(el, Textfeld)):
                 arr_felder_xml.append(textfeld_to_xml(el, n))
 
         page_xml = f"""
@@ -211,7 +221,7 @@ def convert_pngs_to_dict_string(png_files: list):
     			<key>ident</key>
     			<integer>{generate_ident()}</integer>
     			<key>image</key>
-    			<string>{b64.png_to_base64(page)}</string>
+    			<string>{png_to_base64(page)}</string>
     			<key>md5</key>
     			<string>b75bc6059ca9928d7170c3c227e91558</string>
     		</dict>

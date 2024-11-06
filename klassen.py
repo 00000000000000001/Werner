@@ -6,8 +6,7 @@ class Feld:
 class Ankreuzfeld(Feld):
     pass
 
-
-class Textfled(Feld):
+class Textfeld(Feld):
     def __init__(self, x_in_mm, y_in_mm, w_in_mm):
         super().__init__(x_in_mm, y_in_mm)
         self.w_in_mm = w_in_mm
