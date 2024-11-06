@@ -162,7 +162,7 @@ def mm_in_punkte(breite_mm: int, hoehe_mm: int) -> tuple:
 
     return (breite_pt, hoehe_pt)
 
-def convert(pdf_file_path: str):
+def convert_pdf_to_dict_string(pdf_file_path: str):
     global global_counter
     global_counter = 0
 
