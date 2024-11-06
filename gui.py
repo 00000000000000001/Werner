@@ -1,25 +1,36 @@
 import tkinter as tk
 from tkinter import filedialog
 import os
-import PyPDF2
 import convert
 import sys
 import subprocess
 import trace
+from split_pdf import split_pdf_into_png_files
 
 class PDFDCTApp:
     def __init__(self, root: tk.Tk):
 
+        def split_pdfs_into_png_files(pdf_files: tuple) -> list:
+            pages = []
+            total_pages = 0
+            for file in pdf_files:
+                new_pages = split_pdf_into_png_files(file, count_offset=total_pages)
+                total_pages += len(new_pages)
+                pages.extend(new_pages)
+
+            return pages
+
         def process_input():
             try:
                 pdf_files = self.select_pdfs()
+
                 if not pdf_files:
                     return
-                merged_pdf = self.merge_pdfs(pdf_files)
-                dict_string = convert.convert_pdf_to_dict_string(merged_pdf)
+
+                png_files = split_pdfs_into_png_files(pdf_files)
+                dict_string = convert.convert_pngs_to_dict_string(png_files)
                 dict_output_path = self.save_as_dict(dict_string)
                 self.result_label.config(text=f"Datei gespeichert unter: {dict_output_path}", fg="green")
-                os.remove(merged_pdf)
                 self.open_folder(self.desktop_dir)
             except Exception as e:
                 print(f"Fehler beim Verarbeiten der PDF-Dateien: {e}")
@@ -48,25 +59,6 @@ class PDFDCTApp:
             self.result_label.config(text="Keine PDF-Dateien ausgewählt.", fg="red")
             return ()
         return file_paths
-
-    def merge_pdfs(self, pdf_paths: tuple, output_path: str = "merged_output.pdf") -> str:
-        pdf_writer = PyPDF2.PdfWriter()
-        for pdf_path in pdf_paths:
-            try:
-                pdf_reader = PyPDF2.PdfReader(pdf_path)
-                pdf_writer.append(pdf_reader)
-                print(f"{pdf_path} erfolgreich hinzugefügt.")
-            except Exception as e:
-                print(f"Fehler beim Hinzufügen von {pdf_path}: {e}")
-
-        if len(pdf_writer.pages) == 0:
-            raise ValueError("Das finale PDF enthält keine Seiten.")
-
-        with open(output_path, "wb") as output_pdf:
-            pdf_writer.write(output_pdf)
-        print(f"Zusammengefügte PDF gespeichert unter: {output_path}")
-        return output_path
-
 
     def save_as_dict(self, dict_content: str) -> str:
         output_path = os.path.join(self.desktop_dir, "Formular.dict")

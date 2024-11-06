@@ -3,7 +3,7 @@ import ocr
 import split_pdf
 import shutil
 import os
-import pdf_to_b64
+import b64
 from PIL import Image
 from klassen import Ankreuzfeld, Textfled, Feld
 
@@ -162,21 +162,17 @@ def mm_in_punkte(breite_mm: int, hoehe_mm: int) -> tuple:
 
     return (breite_pt, hoehe_pt)
 
-def convert_pdf_to_dict_string(pdf_file_path: str):
+def convert_pngs_to_dict_string(png_files: list):
     global global_counter
     global_counter = 0
 
     name = "OCR"
 
-    pages = split_pdf.pdf_to_png(pdf_file_path)
-
-    pages_b64 = pdf_to_b64.pdf_to_base64_pages(pdf_file_path)
-
-    seite_liste: list = []
+    pages_xml: list = []
 
     bildmasse_in_punkte: tuple = (595, 840)
 
-    for m, page in enumerate(pages):
+    for m, page in enumerate(png_files):
 
         bildmasse_in_mm = berechne_bildmasse_in_mm(page)
         bildmasse_in_punkte = mm_in_punkte(bildmasse_in_mm[0], bildmasse_in_mm[1])
@@ -198,7 +194,6 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
             )
         )
 
-
         arr_felder_xml: list = []
 
         for n, el in enumerate(arr_felder):
@@ -206,9 +201,6 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
                 arr_felder_xml.append(ankreuzfeld_to_xml(el, n))
             if (isinstance(el, Textfled)):
                 arr_felder_xml.append(textfeld_to_xml(el, n))
-
-
-        b64 = pages_b64[m]
 
         page_xml = f"""
         <dict>
@@ -219,7 +211,7 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
     			<key>ident</key>
     			<integer>{generate_ident()}</integer>
     			<key>image</key>
-    			<string>{b64}</string>
+    			<string>{b64.png_to_base64(page)}</string>
     			<key>md5</key>
     			<string>b75bc6059ca9928d7170c3c227e91558</string>
     		</dict>
@@ -240,7 +232,7 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
     		<integer>{m + 1}</integer>
     	</dict>"""
 
-        seite_liste.append(page_xml)
+        pages_xml.append(page_xml)
 
 
     frame_xml = f"""
@@ -260,7 +252,7 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
 		<array/>
 		<key>cleanedArray</key>
 		<array>
-		  {''.join(seite_liste)}
+		  {''.join(pages_xml)}
 		</array>
 		<key>isArchivedArray</key>
 		<true/>
@@ -289,7 +281,7 @@ def convert_pdf_to_dict_string(pdf_file_path: str):
 	<key>name</key>
 	<string>CustomFormular_173892287</string>
 	<key>numberOfDirectPages</key>
-	<integer>{len(seite_liste)}</integer>
+	<integer>{len(pages_xml)}</integer>
 	<key>papersize_height</key>
 	<real>{bildmasse_in_punkte[1]}</real>
 	<key>papersize_width</key>
