@@ -1,6 +1,6 @@
 import cv2
-from klassen import Ankreuzfeld, Textfeld
 import math
+from klassen import Ankreuzfeld, Textfeld
 
 def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     res = []
@@ -156,8 +156,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
 
     return perfekte_kreise_mm
 
-
-def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
+def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list[Textfeld]:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
@@ -213,3 +212,78 @@ def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     lines_positions_mm.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))
 
     return lines_positions_mm
+
+def textfelder_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, distance_threshold=25) -> list[Textfeld]:
+    def detect_small_filled_circles(image_path):
+        image = cv2.imread(image_path)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binary = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY_INV)
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        detected_points = []
+        for contour in contours:
+            ((x, y), radius) = cv2.minEnclosingCircle(contour)
+            area = cv2.contourArea(contour)
+            if area > 5 and radius < 5:
+                detected_points.append((int(x), int(y)))
+        return detected_points
+
+    def group_points_by_y(points, tolerance=3):
+        points.sort(key=lambda p: p[1])
+        grouped_points, current_group, current_y = [], [], None
+        for point in points:
+            x, y = point
+            if current_y is None or abs(y - current_y) <= tolerance:
+                current_group.append(point)
+            else:
+                grouped_points.append(current_group)
+                current_group = [point]
+            current_y = y
+        if current_group:
+            grouped_points.append(current_group)
+        return grouped_points
+
+    def split_groups_by_x_distance(groups):
+        new_groups = []
+        for group in groups:
+            group.sort(key=lambda p: p[0])
+            current_subgroup = [group[0]]
+            for i in range(1, len(group)):
+                x1, y1 = group[i - 1]
+                x2, y2 = group[i]
+                if abs(x2 - x1) > distance_threshold:
+                    new_groups.append(current_subgroup)
+                    current_subgroup = [group[i]]
+                else:
+                    current_subgroup.append(group[i])
+            if current_subgroup:
+                new_groups.append(current_subgroup)
+        return new_groups
+
+    def convert_groups_to_textfields(groups, img_width_px, img_height_px, bildbreite_mm, bildhoehe_mm):
+        textfields = []
+        px_to_mm_x = bildbreite_mm / img_width_px
+        px_to_mm_y = bildhoehe_mm / img_height_px
+        for group in groups:
+            if len(group) < 5:
+                continue
+            min_x = min(point[0] for point in group)
+            max_x = max(point[0] for point in group)
+            y_mean = int(sum(point[1] for point in group) / len(group))
+            x_in_mm = min_x * px_to_mm_x
+            y_in_mm = y_mean * px_to_mm_y
+            w_in_mm = (max_x - min_x) * px_to_mm_x
+            textfields.append(Textfeld(x_in_mm, y_in_mm, w_in_mm))
+        return textfields
+
+    # Bild laden, um Bilddimensionen in Pixeln zu ermitteln
+    image = cv2.imread(image_path)
+    img_height_px, img_width_px = image.shape[:2]
+
+    # Schritte der Bildverarbeitung
+    points = detect_small_filled_circles(image_path)
+    if not points:
+        return []
+    grouped_points = group_points_by_y(points)
+    split_groups = split_groups_by_x_distance(grouped_points)
+    textfields = convert_groups_to_textfields(split_groups, img_width_px, img_height_px, bildbreite_mm, bildhoehe_mm)
+    return textfields

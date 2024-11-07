@@ -1,23 +1,77 @@
 import random
-import ocr
 import shutil
 import os
 from PIL import Image
-from klassen import Ankreuzfeld, Textfeld, Feld
 import base64
 from io import BytesIO
+import ocr
+from klassen import Ankreuzfeld, Textfeld, Feld
+import hashlib
 
 global_counter = 0
 
-def png_to_base64(png_file: str) -> str:
-    print(f"Converting page {png_file} to base64.")
+def calculate_md5(file_path: str) -> str:
+    """
+    Berechnet den MD5-Hash einer Datei (z.B. JPEG-Datei).
 
-    with Image.open(png_file) as img:
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    Args:
+        file_path (str): Der Pfad zur Datei, deren MD5-Hash berechnet werden soll.
 
-    return img_b64
+    Returns:
+        str: Der MD5-Hash der Datei als hexadezimale Zeichenkette.
+    """
+    hash_md5 = hashlib.md5()
+
+    # Öffnet die Datei im Binärmodus und liest sie in Blöcken
+    with open(file_path, "rb") as file:
+        for chunk in iter(lambda: file.read(4096), b""):
+            hash_md5.update(chunk)
+
+    # Gibt den MD5-Hash als hexadezimale Zeichenkette zurück
+    return hash_md5.hexdigest()
+
+
+def convert_png_to_jpeg(png_path: str, quality: int = 85) -> str:
+    """
+    Konvertiert ein PNG-Bild im DIN-A4-Format in ein JPEG-Bild mit komprimierter Qualität, um die Dateigröße zu reduzieren.
+
+    Args:
+        png_path (str): Der Pfad zur PNG-Datei.
+        quality (int): Die Qualität des JPEG-Bildes (zwischen 1 und 95, höhere Werte bedeuten bessere Qualität und größere Dateigröße).
+        output_path (str): Optionaler Pfad, um das konvertierte Bild zu speichern. Wenn nicht angegeben, wird derselbe Name wie der PNG-Pfad verwendet, jedoch mit der Erweiterung .jpg.
+
+    Returns:
+        str: Der Pfad zur konvertierten JPEG-Datei.
+    """
+    # Öffne das PNG-Bild
+    with Image.open(png_path) as img:
+        # Standard-Ausgabepfad verwenden, falls keiner angegeben ist
+        output_path = png_path.rsplit(".", 1)[0] + ".jpg"
+
+        # Konvertiere das Bild in RGB (JPEG unterstützt keinen Alpha-Kanal)
+        img = img.convert("RGB")
+
+        # Speichere das Bild als JPEG mit angegebener Qualität
+        img.save(output_path, "JPEG", quality=quality, optimize=True)
+
+        print(f"Bild erfolgreich konvertiert und gespeichert als: {output_path}")
+        return output_path
+
+def file_to_base64(file_path: str) -> str:
+    """
+    Konvertiert eine beliebige Datei in eine Base64-codierte Zeichenkette.
+
+    Args:
+        file_path (str): Der Pfad zur Datei, die in Base64 umgewandelt werden soll.
+
+    Returns:
+        str: Die Base64-codierte Zeichenkette der Datei.
+    """
+    with open(file_path, "rb") as file:
+        file_content = file.read()
+        base64_encoded = base64.b64encode(file_content).decode("utf-8")
+
+    return base64_encoded
 
 def generate_ident():
     return str(random.randint(10**17, 10**18 - 1))
@@ -182,14 +236,15 @@ def convert_pngs_to_dict_string(png_files: list):
 
     bildmasse_in_punkte: tuple = (595, 840)
 
-    for m, page in enumerate(png_files):
+    for m, file in enumerate(png_files):
 
-        bildmasse_in_mm = berechne_bildmasse_in_mm(page)
+        bildmasse_in_mm = berechne_bildmasse_in_mm(file)
         bildmasse_in_punkte = mm_in_punkte(bildmasse_in_mm[0], bildmasse_in_mm[1])
 
-        arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
-        arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
-        arr_textfelder_koord = ocr.textfelder(page, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_textfelder_koord = ocr.textfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
+        arr_textfelder_koord.extend(ocr.textfelder_gepunktet(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
 
         arr_felder = []
         arr_felder.extend(arr_ankreuzfelder_rund_koord)
@@ -212,6 +267,8 @@ def convert_pngs_to_dict_string(png_files: list):
             if (isinstance(el, Textfeld)):
                 arr_felder_xml.append(textfeld_to_xml(el, n))
 
+        small_file = convert_png_to_jpeg(file)
+
         page_xml = f"""
         <dict>
     		<key>currentImage</key>
@@ -221,9 +278,9 @@ def convert_pngs_to_dict_string(png_files: list):
     			<key>ident</key>
     			<integer>{generate_ident()}</integer>
     			<key>image</key>
-    			<string>{png_to_base64(page)}</string>
+    			<string>{file_to_base64(small_file)}</string>
     			<key>md5</key>
-    			<string>b75bc6059ca9928d7170c3c227e91558</string>
+    			<string>{calculate_md5(small_file)}</string>
     		</dict>
     		<key>customFormularElemente</key>
     		<dict>
@@ -245,8 +302,7 @@ def convert_pngs_to_dict_string(png_files: list):
         pages_xml.append(page_xml)
 
 
-    frame_xml = f"""
-    <?xml version="1.0" encoding="UTF-8"?>
+    frame_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
