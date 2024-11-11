@@ -156,7 +156,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
 
     return perfekte_kreise_mm
 
-def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list[Textfeld]:
+def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=100) -> list[Textfeld]:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
@@ -192,7 +192,7 @@ def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list[Tex
         x, y, w, h = cv2.boundingRect(contour)
 
         # Überprüfen der Breite und Höhe (Linienverhältnis)
-        if w > 200 and h < 20:  # Optional: Breite und Höhe anpassen
+        if w > min_width and h < 20:  # Optional: Breite und Höhe anpassen
             # Prüfen, ob die Linie links oder rechts in direkter Nähe an vertikale Linien grenzt
             padding = 5  # Abstand, um die Nähe zu vertikalen Linien zu prüfen
 
