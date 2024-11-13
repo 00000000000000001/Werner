@@ -79,7 +79,7 @@ def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=
 
     return res
 
-def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=15, max_radius_px=50, umgebung_puffer_px=10):
+def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=10, max_radius_px=50, umgebung_puffer_px=10):
     # Bild in Graustufen laden und Kanten hervorheben
     bild = cv2.imread(pfad_zur_datei, cv2.IMREAD_GRAYSCALE)
     bild_hoehe, bild_breite = bild.shape[:2]
@@ -162,8 +162,13 @@ def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=1
     if image is None:
         raise ValueError("Bild konnte nicht geladen werden. Überprüfen Sie den Pfad.")
 
-    # Binarisierung, um nur Schwarz-Weiß-Pixel zu erhalten
-    _, binary = cv2.threshold(image, 200, 255, cv2.THRESH_BINARY_INV)
+    # Bild leicht weichzeichnen, um Rauschen zu reduzieren und feine Linien zu verbessern
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+
+    # Adaptive Schwellenwertmethode anwenden, um schwächer gezeichnete Linien zu erfassen
+    binary = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 15, 10
+    )
 
     # Horizontalen Strukturkern erstellen und horizontale Linien extrahieren
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))

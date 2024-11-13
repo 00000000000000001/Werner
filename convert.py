@@ -31,7 +31,7 @@ def calculate_md5(file_path: str) -> str:
     return hash_md5.hexdigest()
 
 
-def convert_png_to_jpeg(png_path: str, quality: int = 85) -> str:
+def convert_png_to_jpeg(png_path: str, quality: int = 90) -> str:
     """
     Konvertiert ein PNG-Bild im DIN-A4-Format in ein JPEG-Bild mit komprimierter Qualität, um die Dateigröße zu reduzieren.
 
