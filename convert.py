@@ -5,7 +5,7 @@ from PIL import Image
 import base64
 from io import BytesIO
 import ocr
-from klassen import Ankreuzfeld, Textfeld, Feld
+from klassen import Ankreuzfeld, Textfeld, Rechteck
 import hashlib
 
 global_counter = 0
@@ -29,7 +29,6 @@ def calculate_md5(file_path: str) -> str:
 
     # Gibt den MD5-Hash als hexadezimale Zeichenkette zurück
     return hash_md5.hexdigest()
-
 
 def convert_png_to_jpeg(png_path: str, quality: int = 90) -> str:
     """
@@ -87,13 +86,15 @@ def delete_folder(folder_name: str):
     else:
         print(f"Ordner '{folder_name}' existiert nicht.")
 
-def ankreuzfeld_to_xml(el: Feld, n: int) -> str:
+def ankreuzfeld_to_xml(el: Rechteck, n: int) -> str:
     global global_counter
     global_counter += 1
 
     name = f"v{global_counter}"
-    width = 4.8038711547851562
-    height = 6
+    width = el.x2_mm - el.x1_mm if el.x2_mm - el.x1_mm >= 4 else 4
+    height = el.y2_mm - el.y1_mm if el.y2_mm - el.y1_mm >= 6 else 6
+    x = el.x1_mm - (width - (el.x2_mm - el.x1_mm)) / 2
+    y = el.y1_mm - (height - (el.y2_mm - el.y1_mm)) / 2
 
     return f"""
     <dict>
@@ -118,19 +119,20 @@ def ankreuzfeld_to_xml(el: Feld, n: int) -> str:
        	<key>width</key>
        	<real>{width}</real>
        	<key>xpos</key>
-       	<real>{el.x_in_mm - width / 2}</real>
+       	<real>{x}</real>
        	<key>ypos</key>
-       	<real>{el.y_in_mm - height / 2}</real>
+       	<real>{y}</real>
     </dict>"""
 
-def textfeld_to_xml(el: Feld, n: int) -> str:
+def textfeld_to_xml(el: Rechteck, n: int) -> str:
     global global_counter
     global_counter += 1
 
     name = f"v{global_counter}"
-    x = el.x_in_mm
-    y = el.y_in_mm - 5 # bisschen höher, ne?
-    width = el.w_in_mm
+    x = el.x1_mm
+    y = el.y1_mm
+    width = el.x2_mm - el.x1_mm
+    hoehe = el.y2_mm - el.y1_mm
     return f"""
     <dict>
        	<key>feldName</key>
@@ -140,7 +142,7 @@ def textfeld_to_xml(el: Feld, n: int) -> str:
        	<key>fontSize</key>
        	<integer>18</integer>
        	<key>height</key>
-       	<real>6</real>
+       	<real>{hoehe}</real>
        	<key>ident</key>
        	<integer>{generate_ident()}</integer>
        	<key>isMandatory</key>
@@ -241,21 +243,19 @@ def convert_pngs_to_dict_string(png_files: list):
         bildmasse_in_mm = berechne_bildmasse_in_mm(file)
         bildmasse_in_punkte = mm_in_punkte(bildmasse_in_mm[0], bildmasse_in_mm[1])
 
-        arr_ankreuzfelder_rund_koord = ocr.runde_ankreuzfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
-        arr_ankreuzfelder_quadratisch_koord = ocr.quadratische_ankreuzfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
-        arr_textfelder_koord = ocr.textfelder(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1])
-        arr_textfelder_koord.extend(ocr.textfelder_gepunktet(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
-
         arr_felder = []
-        arr_felder.extend(arr_ankreuzfelder_rund_koord)
-        arr_felder.extend(arr_ankreuzfelder_quadratisch_koord)
-        arr_felder.extend(arr_textfelder_koord)
+
+        arr_felder.extend(ocr.erkenne_kleine_kreise(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
+        arr_felder.extend(ocr.erkenne_kleine_rechtecke(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
+        arr_felder.extend(ocr.erkenne_linien(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
+        arr_felder.extend(ocr.erkenne_linien_gepunktet(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
+        arr_felder.extend(ocr.erkenne_zellen(file))
 
         tolerance = 2  # Toleranz in mm
         arr_felder.sort(
             key=lambda pos: (
-                int((pos.y_in_mm + tolerance / 2) / tolerance),
-                pos.x_in_mm
+                int((pos.y1_mm + tolerance / 2) / tolerance),
+                pos.x1_mm
             )
         )
 

@@ -5,17 +5,19 @@ import random
 
 # Definiere die Klasse Textfeld
 class Feld:
-    def __init__(self, x_in_mm, y_in_mm):
-        self.x_in_mm = x_in_mm
-        self.y_in_mm = y_in_mm
+    def __init__(self, x1_in_mm, y1_in_mm, x2_in_mm, y2_in_mm):
+        self.x1_in_mm = x1_in_mm
+        self.y1_in_mm = y1_in_mm
+        self.x2_in_mm = x2_in_mm
+        self.y2_in_mm = y2_in_mm
 
 class Textfeld(Feld):
-    def __init__(self, x_in_mm, y_in_mm, w_in_mm):
-        super().__init__(x_in_mm, y_in_mm)
-        self.w_in_mm = w_in_mm
-
-    def __repr__(self):
-        return f"Textfeld(x: {self.x_in_mm} mm, y: {self.y_in_mm} mm, w: {self.w_in_mm} mm)"
+    def __init__(self, x1_in_mm, y1_in_mm, x2_in_mm, y2_in_mm):
+        super().__init__(x1_in_mm, y1_in_mm, x2_in_mm, y2_in_mm)
+        self.x1_in_mm = x1_in_mm
+        self.y1_in_mm = y1_in_mm
+        self.x2_in_mm = x2_in_mm
+        self.y2_in_mm = y2_in_mm
 
 def pdf_to_png(pdf_path):
     # Konvertiert eine PDF-Datei in eine Liste von PNG-Bildern

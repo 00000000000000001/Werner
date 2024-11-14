@@ -1,8 +1,9 @@
 import cv2
 import math
 from klassen import Ankreuzfeld, Textfeld
+import numpy as np
 
-def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
+def erkenne_kleine_rechtecke(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
     res = []
     detected_centers = []  # Liste zum Speichern der Mittelpunkte bereits erkannter Quadrate
 
@@ -66,20 +67,22 @@ def quadratische_ankreuzfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=
                     # Wenn kein Duplikat gefunden wurde, Quadrat speichern und markieren
                     if not duplicate:
                         detected_centers.append((center_x, center_y))  # Hinzufügen des neuen Mittelpunkts
-                        center_x_mm = center_x * mm_per_pixel_x
-                        center_y_mm = center_y * mm_per_pixel_y
-                        res.append(Ankreuzfeld(center_x_mm, center_y_mm))
 
-                        # Quadrat oder Rechteck zeichnen und Mittelpunkt markieren (optional)
-                        # cv2.drawContours(image, [approx], -1, (0, 255, 0), 3)
-                        # cv2.circle(image, (center_x, center_y), 5, (0, 0, 255), -1)
+                        # Berechne die Eckenkoordinaten in Millimetern
+                        x1_mm = x * mm_per_pixel_x
+                        y1_mm = y * mm_per_pixel_y
+                        x2_mm = (x + w) * mm_per_pixel_x
+                        y2_mm = (y + h) * mm_per_pixel_y
+
+                        # Füge ein Ankreuzfeld mit den Eckenkoordinaten hinzu
+                        res.append(Ankreuzfeld(x1_mm, y1_mm, x2_mm, y2_mm))
 
     # Sortieren der Quadrate: zuerst nach y, dann nach x
-    res.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))
+    res.sort(key=lambda pos: (pos.y1_mm, pos.x1_mm))
 
     return res
 
-def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=10, max_radius_px=50, umgebung_puffer_px=10):
+def erkenne_kleine_kreise(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min_radius_px=5, max_radius_px=50, umgebung_puffer_px=10):
     # Bild in Graustufen laden und Kanten hervorheben
     bild = cv2.imread(pfad_zur_datei, cv2.IMREAD_GRAYSCALE)
     bild_hoehe, bild_breite = bild.shape[:2]
@@ -94,7 +97,7 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
     # Konturen finden
     konturen, hierarchie = cv2.findContours(thresh, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Ergebnis-Liste für Mittelpunkte der "perfekten" Kreise in mm initialisieren
+    # Ergebnis-Liste für die erkannten Kreise als Ankreuzfelder initialisieren
     perfekte_kreise_mm = []
 
     # Parameter für Kreiserkennung
@@ -146,29 +149,25 @@ def runde_ankreuzfelder(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, min
         if len(umgebende_konturen) > 1:  # Mehr als 1 bedeutet, dass andere Konturen in der Umgebung liegen
             continue  # Überspringen, da wahrscheinlich ein "O" in einem Wort
 
-        # Umrechnung der Pixel-Koordinaten in mm
-        cx_mm = cx_pixel * mm_pro_pixel_breite
-        cy_mm = cy_pixel * mm_pro_pixel_hoehe
-        perfekte_kreise_mm.append(Ankreuzfeld(cx_mm, cy_mm))
+        # Umrechnung der Pixel-Koordinaten der Bounding-Box in mm
+        x1_mm = x * mm_pro_pixel_breite
+        y1_mm = y * mm_pro_pixel_hoehe
+        x2_mm = (x + breite) * mm_pro_pixel_breite
+        y2_mm = (y + hoehe) * mm_pro_pixel_hoehe
 
-    # Sortieren der Kreise: zuerst nach y, dann nach x
-    # perfekte_kreise_mm.sort(key=lambda pos: (pos.x_in_mm, pos.y_in_mm))
+        # Ankreuzfeld mit den Eckenkoordinaten erstellen und zur Liste hinzufügen
+        perfekte_kreise_mm.append(Ankreuzfeld(x1_mm, y1_mm, x2_mm, y2_mm))
 
     return perfekte_kreise_mm
 
-def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=100) -> list[Textfeld]:
+def erkenne_linien(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=100) -> list[Textfeld]:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
         raise ValueError("Bild konnte nicht geladen werden. Überprüfen Sie den Pfad.")
 
-    # Bild leicht weichzeichnen, um Rauschen zu reduzieren und feine Linien zu verbessern
-    blurred = cv2.GaussianBlur(image, (5, 5), 0)
-
-    # Adaptive Schwellenwertmethode anwenden, um schwächer gezeichnete Linien zu erfassen
-    binary = cv2.adaptiveThreshold(
-        blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 15, 10
-    )
+    # Binarisierung, um nur Schwarz-Weiß-Pixel zu erhalten
+    _, binary = cv2.threshold(image, 200, 255, cv2.THRESH_BINARY_INV)
 
     # Horizontalen Strukturkern erstellen und horizontale Linien extrahieren
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
@@ -207,32 +206,48 @@ def textfelder(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=1
 
             # Prüfen, ob keine vertikalen Linien direkt daneben vorhanden sind
             if not (cv2.countNonZero(left_area) > 0 or cv2.countNonZero(right_area) > 0):
-                # Umrechnung der Koordinaten und Größe von Pixeln in Millimeter
-                x_mm = x * pixel_to_mm_x
-                y_mm = y * pixel_to_mm_y
-                w_mm = w * pixel_to_mm_x
-                lines_positions_mm.append(Textfeld(x_mm, y_mm, w_mm))
+                # Umrechnung der Koordinaten von Pixeln in Millimeter für die obere linke und untere rechte Ecke
+                x1_mm = x * pixel_to_mm_x
+                y1_mm = y * pixel_to_mm_y
+                x2_mm = (x + w) * pixel_to_mm_x
+                y2_mm = (y + h) * pixel_to_mm_y
+
+                # Hinzufügen eines Textfeld-Objekts mit den beiden Ecken
+                lines_positions_mm.append(Textfeld(x1_mm, y1_mm - 5, x2_mm, y1_mm + 1))
 
     # Sortieren der Linien: zuerst nach y, dann nach x
-    lines_positions_mm.sort(key=lambda pos: (pos.y_in_mm, pos.x_in_mm))
+    lines_positions_mm.sort(key=lambda pos: (pos.y1_mm, pos.x1_mm))
 
     return lines_positions_mm
 
-def textfelder_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, distance_threshold=25) -> list[Textfeld]:
+def erkenne_linien_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, distance_threshold=20) -> list[Textfeld]:
+
     def detect_small_filled_circles(image_path):
         image = cv2.imread(image_path)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Schwellenwert zur Binarisierung anpassen
         _, binary = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY_INV)
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Tabellenstruktur entfernen
+        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
+        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
+        horizontal_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, horizontal_kernel)
+        vertical_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, vertical_kernel)
+        table_structure = cv2.add(horizontal_lines, vertical_lines)
+        binary_no_table = cv2.subtract(binary, table_structure)
+
+        # Suche nach kleinen, gefüllten Kreisen
+        contours, _ = cv2.findContours(binary_no_table, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         detected_points = []
         for contour in contours:
             ((x, y), radius) = cv2.minEnclosingCircle(contour)
             area = cv2.contourArea(contour)
-            if area > 5 and radius < 5:
+            if area > 3 and radius < 6:  # Angepasste Werte für besseren Radius
                 detected_points.append((int(x), int(y)))
         return detected_points
 
-    def group_points_by_y(points, tolerance=3):
+    def group_points_by_y(points, tolerance=5):  # Toleranz angepasst
         points.sort(key=lambda p: p[1])
         grouped_points, current_group, current_y = [], [], None
         for point in points:
@@ -273,11 +288,17 @@ def textfelder_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, d
                 continue
             min_x = min(point[0] for point in group)
             max_x = max(point[0] for point in group)
-            y_mean = int(sum(point[1] for point in group) / len(group))
-            x_in_mm = min_x * px_to_mm_x
-            y_in_mm = y_mean * px_to_mm_y
-            w_in_mm = (max_x - min_x) * px_to_mm_x
-            textfields.append(Textfeld(x_in_mm, y_in_mm, w_in_mm))
+            min_y = min(point[1] for point in group)
+            max_y = max(point[1] for point in group)
+
+            # Umrechnung der Koordinaten von Pixel in Millimeter
+            x1_mm = min_x * px_to_mm_x
+            y1_mm = min_y * px_to_mm_y
+            x2_mm = max_x * px_to_mm_x
+            y2_mm = max_y * px_to_mm_y
+
+            # Hinzufügen eines Textfeld-Objekts mit den Eckenkoordinaten
+            textfields.append(Textfeld(x1_mm, y1_mm - 5, x2_mm, y1_mm + 1))
         return textfields
 
     # Bild laden, um Bilddimensionen in Pixeln zu ermitteln
@@ -292,3 +313,65 @@ def textfelder_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, d
     split_groups = split_groups_by_x_distance(grouped_points)
     textfields = convert_groups_to_textfields(split_groups, img_width_px, img_height_px, bildbreite_mm, bildhoehe_mm)
     return textfields
+
+def erkenne_zellen(pfad_zum_bild, dpi=300, min_breite_mm=5, min_hoehe_mm=5, padding_mm=0.5):
+    # Bild laden
+    bild = cv2.imread(pfad_zum_bild)
+    if bild is None:
+        raise FileNotFoundError(f"Bilddatei {pfad_zum_bild} nicht gefunden.")
+
+    # Bild in Graustufen konvertieren
+    graubild = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
+    # Bild binarisieren
+    _, binarisiert = cv2.threshold(graubild, 127, 255, cv2.THRESH_BINARY_INV)
+
+    # Konturen finden
+    konturen, hierarchie = cv2.findContours(binarisiert, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Liste für Textfeld-Objekte
+    textfelder = []
+
+    # Pixel zu mm Umrechnung
+    pixel_pro_mm = dpi / 25.4
+    min_breite_pixel = int(min_breite_mm * pixel_pro_mm)
+    min_hoehe_pixel = int(min_hoehe_mm * pixel_pro_mm)
+    padding_pixel = int(padding_mm * pixel_pro_mm)
+
+    # Alle Konturen durchlaufen und Rechtecke finden
+    for kontur in konturen:
+        x, y, breite, hoehe = cv2.boundingRect(kontur)
+
+        # Überprüfen, ob Rechteck die Mindestgröße erfüllt
+        if breite >= min_breite_pixel and hoehe >= min_hoehe_pixel:
+            # Füge Padding hinzu, um den freien Bereich zu isolieren
+            x += padding_pixel
+            y += padding_pixel
+            breite -= 2 * padding_pixel
+            hoehe -= 2 * padding_pixel
+
+            # Berechne die unteren rechten Koordinaten in mm
+            x1_in_mm = x / pixel_pro_mm
+            y1_in_mm = y / pixel_pro_mm
+            x2_in_mm = (x + breite) / pixel_pro_mm
+            y2_in_mm = (y + hoehe) / pixel_pro_mm
+
+            # Rechteck speichern
+            textfeld = Textfeld(x1_in_mm, y1_in_mm, x2_in_mm, y2_in_mm)
+            textfelder.append(textfeld)
+
+    # Überdeckte Rechtecke filtern
+    gefilterte_textfelder = []
+    for i, tf1 in enumerate(textfelder):
+        ueberdeckt = False
+        for j, tf2 in enumerate(textfelder):
+            if i != j:
+                if (tf1.x1_mm <= tf2.x1_mm and
+                    tf1.y1_mm <= tf2.y1_mm and
+                    tf1.x2_mm >= tf2.x2_mm and
+                    tf1.y2_mm >= tf2.y2_mm):
+                    ueberdeckt = True
+                    break
+        if not ueberdeckt:
+            gefilterte_textfelder.append(tf1)
+
+    return gefilterte_textfelder
