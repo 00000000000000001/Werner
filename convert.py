@@ -91,10 +91,10 @@ def ankreuzfeld_to_xml(el: Rechteck, n: int) -> str:
     global_counter += 1
 
     name = f"v{global_counter}"
-    width = el.x2_mm - el.x1_mm if el.x2_mm - el.x1_mm >= 4 else 4
-    height = el.y2_mm - el.y1_mm if el.y2_mm - el.y1_mm >= 6 else 6
-    x = el.x1_mm - (width - (el.x2_mm - el.x1_mm)) / 2
-    y = el.y1_mm - (height - (el.y2_mm - el.y1_mm)) / 2
+    width = el.x2 - el.x1 if el.x2 - el.x1 >= 4 else 4
+    height = el.y2 - el.y1 if el.y2 - el.y1 >= 6 else 6
+    x = el.x1 - (width - (el.x2 - el.x1)) / 2
+    y = el.y1 - (height - (el.y2 - el.y1)) / 2
 
     return f"""
     <dict>
@@ -129,10 +129,10 @@ def textfeld_to_xml(el: Rechteck, n: int) -> str:
     global_counter += 1
 
     name = f"v{global_counter}"
-    x = el.x1_mm
-    y = el.y1_mm
-    width = el.x2_mm - el.x1_mm
-    hoehe = el.y2_mm - el.y1_mm
+    x = el.x1
+    y = el.y1
+    width = el.x2 - el.x1
+    hoehe = el.y2 - el.y1
     return f"""
     <dict>
        	<key>feldName</key>
@@ -245,6 +245,9 @@ def convert_pngs_to_dict_string(png_files: list):
 
         arr_felder = []
 
+        # ocr.erkenne_text_und_rahmen(file)
+        # quit()
+
         arr_felder.extend(ocr.erkenne_kleine_kreise(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
         arr_felder.extend(ocr.erkenne_kleine_rechtecke(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
         arr_felder.extend(ocr.erkenne_linien(file, bildbreite_mm=bildmasse_in_mm[0], bildhoehe_mm=bildmasse_in_mm[1]))
@@ -254,8 +257,8 @@ def convert_pngs_to_dict_string(png_files: list):
         tolerance = 2  # Toleranz in mm
         arr_felder.sort(
             key=lambda pos: (
-                int((pos.y1_mm + tolerance / 2) / tolerance),
-                pos.x1_mm
+                int((pos.y1 + tolerance / 2) / tolerance),
+                pos.x1
             )
         )
 
@@ -266,6 +269,7 @@ def convert_pngs_to_dict_string(png_files: list):
                 arr_felder_xml.append(ankreuzfeld_to_xml(el, n))
             if (isinstance(el, Textfeld)):
                 arr_felder_xml.append(textfeld_to_xml(el, n))
+
 
         small_file = convert_png_to_jpeg(file)
 

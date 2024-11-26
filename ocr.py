@@ -1,9 +1,9 @@
 import cv2
 import math
-from klassen import Ankreuzfeld, Textfeld
-import numpy as np
+from klassen import Ankreuzfeld, Rechteck, Textfeld
+import pytesseract
 
-def erkenne_kleine_rechtecke(image_path: str, bildbreite_mm=210, bildhoehe_mm=297) -> list:
+def erkenne_kleine_rechtecke(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_size=10, max_size=100) -> list:
     res = []
     detected_centers = []  # Liste zum Speichern der Mittelpunkte bereits erkannter Quadrate
 
@@ -26,16 +26,8 @@ def erkenne_kleine_rechtecke(image_path: str, bildbreite_mm=210, bildhoehe_mm=29
     # Konturen finden und Hierarchie abrufen
     contours, hierarchy = cv2.findContours(morphed, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Mindestgröße und Maximalgröße für Quadrate/Rechtecke festlegen (z.B. 20x20 bis 100x100 Pixel)
-    min_size = 20
-    max_size = 100
-
     # Bildabmessungen in Pixel
     image_height_px, image_width_px = gray.shape
-
-    # Berechnung der mm pro Pixel
-    mm_per_pixel_x = bildbreite_mm / image_width_px
-    mm_per_pixel_y = bildhoehe_mm / image_height_px
 
     # Schleife über die gefundenen Konturen
     for i, contour in enumerate(contours):
@@ -68,17 +60,11 @@ def erkenne_kleine_rechtecke(image_path: str, bildbreite_mm=210, bildhoehe_mm=29
                     if not duplicate:
                         detected_centers.append((center_x, center_y))  # Hinzufügen des neuen Mittelpunkts
 
-                        # Berechne die Eckenkoordinaten in Millimetern
-                        x1_mm = x * mm_per_pixel_x
-                        y1_mm = y * mm_per_pixel_y
-                        x2_mm = (x + w) * mm_per_pixel_x
-                        y2_mm = (y + h) * mm_per_pixel_y
-
                         # Füge ein Ankreuzfeld mit den Eckenkoordinaten hinzu
-                        res.append(Ankreuzfeld(x1_mm, y1_mm, x2_mm, y2_mm))
+                        res.append(Ankreuzfeld(x, y, (x + w), (y + h)).to_mm())
 
     # Sortieren der Quadrate: zuerst nach y, dann nach x
-    res.sort(key=lambda pos: (pos.y1_mm, pos.x1_mm))
+    res.sort(key=lambda pos: (pos.y1, pos.x1))
 
     return res
 
@@ -149,18 +135,12 @@ def erkenne_kleine_kreise(pfad_zur_datei, bildbreite_mm=210, bildhoehe_mm=297, m
         if len(umgebende_konturen) > 1:  # Mehr als 1 bedeutet, dass andere Konturen in der Umgebung liegen
             continue  # Überspringen, da wahrscheinlich ein "O" in einem Wort
 
-        # Umrechnung der Pixel-Koordinaten der Bounding-Box in mm
-        x1_mm = x * mm_pro_pixel_breite
-        y1_mm = y * mm_pro_pixel_hoehe
-        x2_mm = (x + breite) * mm_pro_pixel_breite
-        y2_mm = (y + hoehe) * mm_pro_pixel_hoehe
-
         # Ankreuzfeld mit den Eckenkoordinaten erstellen und zur Liste hinzufügen
-        perfekte_kreise_mm.append(Ankreuzfeld(x1_mm, y1_mm, x2_mm, y2_mm))
+        perfekte_kreise_mm.append(Ankreuzfeld(x, y, (x + breite), (y + hoehe)).to_mm())
 
     return perfekte_kreise_mm
 
-def erkenne_linien(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=100) -> list[Textfeld]:
+def erkenne_linien(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_width=50, dpi=300) -> list[Textfeld]:
     # Bild in Graustufen laden
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
@@ -186,10 +166,6 @@ def erkenne_linien(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_wid
     # Bildabmessungen in Pixel
     image_height_px, image_width_px = image.shape
 
-    # Berechnung der mm pro Pixel
-    pixel_to_mm_x = bildbreite_mm / image_width_px
-    pixel_to_mm_y = bildhoehe_mm / image_height_px
-
     # Filter für isolierte Linien: Breite, Höhe und Isolation prüfen
     lines_positions_mm = []
     for contour in contours:
@@ -206,17 +182,14 @@ def erkenne_linien(image_path: str, bildbreite_mm=210, bildhoehe_mm=297, min_wid
 
             # Prüfen, ob keine vertikalen Linien direkt daneben vorhanden sind
             if not (cv2.countNonZero(left_area) > 0 or cv2.countNonZero(right_area) > 0):
-                # Umrechnung der Koordinaten von Pixeln in Millimeter für die obere linke und untere rechte Ecke
-                x1_mm = x * pixel_to_mm_x
-                y1_mm = y * pixel_to_mm_y
-                x2_mm = (x + w) * pixel_to_mm_x
-                y2_mm = (y + h) * pixel_to_mm_y
+
+                pxl_pro_mm = dpi / 25.4
 
                 # Hinzufügen eines Textfeld-Objekts mit den beiden Ecken
-                lines_positions_mm.append(Textfeld(x1_mm, y1_mm - 5, x2_mm, y1_mm + 1))
+                lines_positions_mm.append(Textfeld(x, y - 5 * pxl_pro_mm, (x + w), y + 1 * pxl_pro_mm).to_mm())
 
     # Sortieren der Linien: zuerst nach y, dann nach x
-    lines_positions_mm.sort(key=lambda pos: (pos.y1_mm, pos.x1_mm))
+    lines_positions_mm.sort(key=lambda pos: (pos.y1, pos.x1))
 
     return lines_positions_mm
 
@@ -315,63 +288,124 @@ def erkenne_linien_gepunktet(image_path: str, bildbreite_mm=210, bildhoehe_mm=29
     return textfields
 
 def erkenne_zellen(pfad_zum_bild, dpi=300, min_breite_mm=5, min_hoehe_mm=5, padding_mm=0.5):
-    # Bild laden
+
+    def entferne_tabellenlinien(bild):
+        graubild = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
+
+        # Adaptive Schwellenwertsetzung
+        adaptives_binarisiert = cv2.adaptiveThreshold(graubild, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                                      cv2.THRESH_BINARY_INV, 15, 9)
+
+        # Morphologische Operationen zur Linienentfernung
+        kernel_horizontal = cv2.getStructuringElement(cv2.MORPH_RECT, (bild.shape[1] // 40, 1))
+        horizontale_linien = cv2.morphologyEx(adaptives_binarisiert, cv2.MORPH_OPEN, kernel_horizontal)
+
+        kernel_vertical = cv2.getStructuringElement(cv2.MORPH_RECT, (1, bild.shape[0] // 40))
+        vertikale_linien = cv2.morphologyEx(adaptives_binarisiert, cv2.MORPH_OPEN, kernel_vertical)
+
+        linien = cv2.add(horizontale_linien, vertikale_linien)
+        ohne_linien = cv2.subtract(adaptives_binarisiert, linien)
+
+        # Erosion und Dilation anwenden
+        kernel_erode_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        ohne_linien = cv2.erode(ohne_linien, kernel_erode_dilate, iterations=1)
+        ohne_linien = cv2.dilate(ohne_linien, kernel_erode_dilate, iterations=1)
+
+        return ohne_linien
+
+    def erkenne_text_und_rahmen(pfad_zum_bild, dpi=300):
+        bild = cv2.imread(pfad_zum_bild)
+        if bild is None:
+            raise FileNotFoundError(f"Bilddatei {pfad_zum_bild} nicht gefunden.")
+
+        # Vorverarbeitung: Entfernen der Tabellenlinien
+        vorverarbeitetes_bild = entferne_tabellenlinien(bild)
+
+        # OCR-Analyse mit optimierten Parametern
+        ocr_config = '--psm 6'  # psm 6 ist gut für tabellarische Daten
+        daten = pytesseract.image_to_data(vorverarbeitetes_bild, output_type=pytesseract.Output.DICT, config=ocr_config)
+        textbloecke = []
+
+        # Textblöcke erkennen und speichern
+        for i in range(len(daten['text'])):
+            text = daten['text'][i].strip()
+            if not text or text in {"O", "o", "0", "ö"}:
+                continue
+
+            x1_pixel = daten['left'][i]
+            y1_pixel = daten['top'][i]
+            breite_pixel = daten['width'][i]
+            hoehe_pixel = daten['height'][i]
+
+            x2_pixel = x1_pixel + breite_pixel
+            y2_pixel = y1_pixel + hoehe_pixel
+
+            textbloecke.append(Textfeld(x1_pixel, y1_pixel, x2_pixel, y2_pixel, dpi=dpi))
+
+            # Rechteck auf das Bild zeichnen
+            cv2.rectangle(bild, (x1_pixel, y1_pixel), (x2_pixel, y2_pixel), (0, 255, 0), 2)
+            cv2.putText(bild, text, (x1_pixel, y1_pixel - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+        # Bild mit markierten Textblöcken anzeigen
+        # cv2.imshow("Bild mit erkannten Textblöcken", bild)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+        return textbloecke
+
     bild = cv2.imread(pfad_zum_bild)
     if bild is None:
         raise FileNotFoundError(f"Bilddatei {pfad_zum_bild} nicht gefunden.")
 
-    # Bild in Graustufen konvertieren
     graubild = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
-    # Bild binarisieren
     _, binarisiert = cv2.threshold(graubild, 127, 255, cv2.THRESH_BINARY_INV)
+    konturen, _ = cv2.findContours(binarisiert, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Konturen finden
-    konturen, hierarchie = cv2.findContours(binarisiert, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Liste für Textfeld-Objekte
-    textfelder = []
-
-    # Pixel zu mm Umrechnung
     pixel_pro_mm = dpi / 25.4
     min_breite_pixel = int(min_breite_mm * pixel_pro_mm)
     min_hoehe_pixel = int(min_hoehe_mm * pixel_pro_mm)
     padding_pixel = int(padding_mm * pixel_pro_mm)
 
-    # Alle Konturen durchlaufen und Rechtecke finden
+    textfelder = []
     for kontur in konturen:
         x, y, breite, hoehe = cv2.boundingRect(kontur)
 
-        # Überprüfen, ob Rechteck die Mindestgröße erfüllt
         if breite >= min_breite_pixel and hoehe >= min_hoehe_pixel:
-            # Füge Padding hinzu, um den freien Bereich zu isolieren
             x += padding_pixel
             y += padding_pixel
             breite -= 2 * padding_pixel
             hoehe -= 2 * padding_pixel
 
-            # Berechne die unteren rechten Koordinaten in mm
-            x1_in_mm = x / pixel_pro_mm
-            y1_in_mm = y / pixel_pro_mm
-            x2_in_mm = (x + breite) / pixel_pro_mm
-            y2_in_mm = (y + hoehe) / pixel_pro_mm
+            x2 = x + breite
+            y2 = y + hoehe
 
-            # Rechteck speichern
-            textfeld = Textfeld(x1_in_mm, y1_in_mm, x2_in_mm, y2_in_mm)
-            textfelder.append(textfeld)
+            textfelder.append(Textfeld(x, y, x2, y2, dpi=dpi))
 
-    # Überdeckte Rechtecke filtern
     gefilterte_textfelder = []
     for i, tf1 in enumerate(textfelder):
         ueberdeckt = False
         for j, tf2 in enumerate(textfelder):
             if i != j:
-                if (tf1.x1_mm <= tf2.x1_mm and
-                    tf1.y1_mm <= tf2.y1_mm and
-                    tf1.x2_mm >= tf2.x2_mm and
-                    tf1.y2_mm >= tf2.y2_mm):
+                if (tf1.x1 <= tf2.x1 and tf1.y1 <= tf2.y1 and
+                    tf1.x2 >= tf2.x2 and tf1.y2 >= tf2.y2):
                     ueberdeckt = True
                     break
         if not ueberdeckt:
             gefilterte_textfelder.append(tf1)
 
-    return gefilterte_textfelder
+    finale_textfelder = []
+    textbloecke = erkenne_text_und_rahmen(pfad_zum_bild, dpi=dpi)
+
+    for tf in gefilterte_textfelder:
+        ueberdeckt = False
+        for tb in textbloecke:
+            if (tf.x1 < tb.x2 and tf.x2 > tb.x1 and
+                tf.y1 < tb.y2 and tf.y2 > tb.y1):
+                ueberdeckt = True
+                break
+        if not ueberdeckt:
+            finale_textfelder.append(tf)
+
+    # Konvertiere finale Textfelder in mm falls benötigt
+    finale_textfelder_mm = [tf.to_mm() for tf in finale_textfelder]
+    return finale_textfelder_mm
