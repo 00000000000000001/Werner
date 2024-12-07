@@ -1,0 +1,49 @@
+{
+    "linien": {
+        "active": true,
+        "min_width": 50,
+        "dilation_kernel_size_x": 25,
+        "dilation_kernel_size_y": 1
+    },
+    "linien_punkte": {
+        "active": true,
+        "distance_threshold": 20,
+        "tolerance_y": 5,
+        "min_points_per_line": 5
+    },
+    "kaestchen": {
+        "active": true,
+        "min_height": 15,
+        "min_width": 15,
+        "max_height": 100,
+        "max_width": 100,
+        "approx_epsilon_factor": 0.02,
+        "dilation_kernel_size_x": 3,
+        "dilation_kernel_size_y": 3,
+        "center_tolerance": 10
+    },
+    "kreise": {
+        "active": true,
+        "min_radius": 12,
+        "max_radius": 120,
+        "umgebung_puffer": 10,
+        "epsilon_formfaktor": 0.2,
+        "epsilon_aspektverhaeltnis": 0.2,
+        "solidity_threshold": 0.9,
+        "dilation_kernel_size_x": 3,
+        "dilation_kernel_size_y": 3
+    },
+    "zellen": {
+        "active": true,
+        "min_height": 50,
+        "min_width": 100,
+        "max_height": 99999,
+        "max_width": 99999,
+        "approx_epsilon_factor": 0.02,
+        "dilation_kernel_size_x": 3,
+        "dilation_kernel_size_y": 3,
+        "center_tolerance": 10,
+        "padding": 10,
+        "max_perc_white_pixels": 0.01
+    }
+}
